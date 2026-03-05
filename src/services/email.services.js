@@ -46,6 +46,19 @@ async function sendRegistrationEmail(userEmail, name) {
   sendEmail(userEmail, subject, text, html);
 }
 
+export async function sendTranscationEmail(userEmail, name, amount, toAccount) {
+  const subject = 'Transcation Successfull';
+  const text = `Hello ${name},\n\nYour Transcation of $${amount} to account ${toAccount} was successfull.`
+  const html = `<p>Hello ${name}, </p><p>Your Transcation of $${amount} to account ${toAccount} was successfull.</p>`
+  await sendEmail(userEmail, subject, text, html)
+}
+export async function sendTranscationFailedEmail(userEmail, name, amount, toAccount) {
+  const subject = 'Transcation failed';
+  const text = `Hello ${name},\n\nYour Transcation of $${amount} to account ${toAccount} was failed.`
+  const html = `<p>Hello ${name}, </p><p>Your Transcation of $${amount} to account ${toAccount} was failed.</p>`
+  await sendEmail(userEmail, subject, text, html)
+}
+
 
 
 export default sendRegistrationEmail;

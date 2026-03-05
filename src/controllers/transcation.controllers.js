@@ -17,6 +17,7 @@
 import mongoose from "mongoose";
 import accountModel from "../models/account.models.js";
 import TranscationModel from "../models/transactions.models.js";
+import LedgerModel from "../models/ledger.models.js";
 
 export async function createTranscation(req, res) {
     try {
@@ -89,26 +90,26 @@ export async function createTranscation(req, res) {
         const session = await mongoose.startSession();
         session.startTransaction();
 
-        const transcation = await TranscationModel.create({
+        const transcation = new TranscationModel({
             fromAccount,
             toAccount,
             amount,
             idempotencyKey,
             status: 'PENDING'
-        }, { session })
+        })
 
-        const debitLedgerEntry = await LedgerModel.create({
+        const debitLedgerEntry = await LedgerModel.create([{
             account: fromAccount,
             amount,
             transcation: transcation._id,
             type: 'DEBIT'
-        }, { session })
-        const creditLedgerEntry = await LedgerModel.create({
+        }], { session })
+        const creditLedgerEntry = await LedgerModel.create([{
             account: toAccount,
             amount,
             transcation: transcation._id,
             type: 'CREDIT'
-        }, { session })
+        }], { session })
 
         transcation.status = 'COMPLETED';
         await transcation.save({ session })
@@ -125,4 +126,89 @@ export async function createTranscation(req, res) {
     } catch (error) {
         return res.status(500).json({ message: "Internal server error" })
     }
-} 
+}
+
+
+export async function createSystemUserInitialFundsController(req, res) {
+    const { toAccount, amount, idempotencyKey } = req.body;
+    try {
+        if (!toAccount || !amount || !idempotencyKey) {
+            return res.status(400).json({
+                message: "toAccount, amount, idempotencyKey are required"
+            })
+        }
+
+        const toUserAccount = await accountModel.findOne({
+            _id: toAccount
+        });
+
+        if (!toUserAccount) {
+            return res.status(400).json({
+                message: "Invalid toAccount"
+            })
+        }
+        const fromUserAccount = await accountModel.findOne({
+            user: req.user._id
+        })
+        if (!fromUserAccount) {
+            return res.status(400).json({
+                message: 'System user account not found!'
+            })
+        }
+
+        const session = await mongoose.startSession();
+        session.startTransaction();
+        const transcation = new TranscationModel(
+            {
+                fromAccount: fromUserAccount._id,
+                toAccount,
+                amount,
+                idempotencyKey,
+                status: "PENDING"
+            }
+        );
+        const debitLedgerEntery = await LedgerModel.create([{
+            account: fromUserAccount._id,
+            amount: amount,
+            transaction: transcation._id,  
+            type: 'DEBIT'
+        }], { session });
+
+        const creditLedgerEntry = await LedgerModel.create([{
+            account: toAccount,
+            amount: amount,
+            transaction: transcation._id, 
+            type: 'CREDIT'
+        }], { session });
+
+        transcation.status = 'COMPLETED'
+        await transcation.save({session});
+
+        await session.commitTransaction();
+        session.endSession();
+
+        return res.status(201).json({
+            message: "Initial funds transcation completed successfully.",
+            transcation
+        })
+
+    } catch (error) {
+        // const fromUserAccount = await accountModel.findOne({
+        //     user: req.user._id
+        // })
+        // const transcation = new TranscationModel(
+        //     {
+        //         fromAccount: fromUserAccount._id,
+        //         toAccount,
+        //         amount,
+        //         idempotencyKey,
+        //         status: "FAILED"
+        //     }
+        // );
+        // await transcation.save();
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Something went wrong'
+        })
+    }
+}
