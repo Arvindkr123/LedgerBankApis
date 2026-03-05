@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken"
 import UserModel from './../models/user.models.js';
+import TokenBlackListModel from "../models/blackListModels.js";
 
 async function authMiddleware(req, res, next) {
 
@@ -7,6 +8,11 @@ async function authMiddleware(req, res, next) {
 
     if (!token) {
         return res.status(401).json({ message: "Unauthorized: No token provided" });
+    }
+
+    const blackListToken = await TokenBlackListModel.findOne({ token })
+    if (blackListToken) {
+        return res.status(401).json({ message: "Unauthorized: Invalid token provided" });
     }
 
     try {
@@ -31,6 +37,14 @@ export async function authSystemUserMiddleware(req, res, next) {
         }
 
         const token = authHeader.split(" ")[1];
+        if (!token) {
+            return res.status(401).json({ message: "Unauthorized: no token provided" });
+        }
+
+        const blackListToken = await TokenBlackListModel.findOne({ token })
+        if (blackListToken) {
+            return res.status(401).json({ message: "Unauthorized: Invalid token provided" });
+        }
 
         // ✅ Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);

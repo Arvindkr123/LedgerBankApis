@@ -1,6 +1,9 @@
 // import sendRegistrationEmail from '../services/email.services.js';
+import TokenBlackListModel from '../models/blackListModels.js';
 import UserModel from './../models/user.models.js';
 import jwt from 'jsonwebtoken';
+
+
 export async function userRegisterController(req, res) {
     try {
         const { email, name, password } = req.body;
@@ -91,5 +94,27 @@ export async function userLoginController(req, res) {
             message: "Error logging in",
             error: error.message
         });
+    }
+}
+
+export async function userLogoutController(req, res) {
+    try {
+        const token = req.cookies.token || req.headers.authorization.split(" ")[1];
+        if (!token) {
+            return res.status(200).json({
+                message: "User logout successfully"
+            })
+        }
+        res.clearCookie("token");
+        await TokenBlackListModel.create({
+            token
+        })
+        res.status(200).json({
+            message: 'user logout successfully!'
+        })
+    } catch (error) {
+        res.status(500).json({
+            message: 'error while logout user!. please try again'
+        })
     }
 }
