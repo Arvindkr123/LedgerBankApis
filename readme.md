@@ -69,7 +69,3 @@ MongoDB transactions ensure:
 - **MongoDB**
 - **Mongoose**
 - **MongoDB Sessions & Transactions**
-
----
-
-## 📂 Project Structure
