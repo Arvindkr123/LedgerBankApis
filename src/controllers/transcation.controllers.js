@@ -85,37 +85,46 @@ export async function createTranscation(req, res) {
                 message: `Insufficient balance.Current balance is ${senderBalance} and required balance is ${amount}`
             })
         }
-
-        // create mongodb session
-        const session = await mongoose.startSession();
-        session.startTransaction();
-
-        const transcation = new TranscationModel({
-            fromAccount:fromUserAccount._id,
-            toAccount,
-            amount,
-            idempotencyKey,
-            status: 'PENDING'
-        })
-
-        const debitLedgerEntry = await LedgerModel.create([{
-            account: fromUserAccount._id,
-            amount,
-            transaction: transcation._id,
-            type: 'DEBIT'
-        }], { session })
-        const creditLedgerEntry = await LedgerModel.create([{
-            account: toUserAccount._id,
-            amount,
-            transaction: transcation._id,
-            type: 'CREDIT'
-        }], { session })
-
-        transcation.status = 'COMPLETED';
-        await transcation.save({ session })
-
-        await session.commitTransaction();
-        session.endSession();
+        let transcation;
+        try {
+            // create mongodb session
+            const session = await mongoose.startSession();
+            session.startTransaction();
+    
+            transcation = (await TranscationModel.create([{
+                fromAccount:fromUserAccount._id,
+                toAccount,
+                amount,
+                idempotencyKey,
+                status: 'PENDING'
+            }],{session}))[0]
+    
+            const debitLedgerEntry = await LedgerModel.create([{
+                account: fromUserAccount._id,
+                amount,
+                transaction: transcation._id,
+                type: 'DEBIT'
+            }], { session })
+            const creditLedgerEntry = await LedgerModel.create([{
+                account: toUserAccount._id,
+                amount,
+                transaction: transcation._id,
+                type: 'CREDIT'
+            }], { session })
+    
+            await TranscationModel.findOneAndUpdate(
+                {_id:transcation._id},
+                {status:'COMPLETED'},
+                {session},
+            )
+            
+            await session.commitTransaction();
+            session.endSession();
+        } catch (error) {
+            return res.status(400).json({
+                message:'Transcation is Pending to due to some reason, please retry after some time.'
+            })
+        }
 
         res.status(201).json({
             success: true,
